@@ -1,0 +1,23 @@
+# Conveyor Belt dogfooding — the pipeline validates itself.
+project:
+  languages: [python]
+
+stations:
+  unit_coverage:
+    enabled: true
+    threshold: 85
+  feature_validation:
+    enabled: false
+  regression:
+    enabled: false
+  idiomatic:
+    enabled: true
+    style_baseline: google
+  vulnerability:
+    enabled: false  # enable when snyk is configured
+  security:
+    enabled: false  # enable when agent keys are configured
+
+gate:
+  policy: hard_fail
+  allow_override: false

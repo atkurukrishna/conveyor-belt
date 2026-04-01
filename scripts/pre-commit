@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Git pre-commit hook — runs conveyor-belt's own QA pipeline on staged changes.
+# Install: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -euo pipefail
+
+echo "🔍 Pre-commit: running conveyor-belt self-check..."
+
+# 1. Ruff lint (fast, catches most issues)
+echo "  → ruff check"
+poetry run ruff check conveyor_belt/ tests/ || {
+    echo "❌ Lint failed. Run 'poetry run ruff check --fix conveyor_belt/ tests/' to auto-fix."
+    exit 1
+}
+
+# 2. Unit tests
+echo "  → pytest"
+poetry run pytest tests/unit/ -q --tb=line || {
+    echo "❌ Tests failed."
+    exit 1
+}
+
+# 3. Dogfood: run the idiomatic station on staged changes
+echo "  → cb selfcheck (idiomatic station on staged diff)"
+poetry run cb run --diff HEAD --repo . --station idiomatic 2>/dev/null || {
+    echo "⚠️  Idiomatic station found issues (see output above). Proceeding anyway."
+    # Don't block on this — it's advisory during dogfooding bootstrap.
+    # Change 'exit 0' to 'exit 1' once all stations are stable.
+}
+
+echo "✅ Pre-commit passed."
