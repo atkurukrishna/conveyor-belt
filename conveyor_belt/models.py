@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -52,4 +52,4 @@ class StationResult(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
     coverage: list[CoverageRecord] = Field(default_factory=list)
     duration_seconds: float = 0.0
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))

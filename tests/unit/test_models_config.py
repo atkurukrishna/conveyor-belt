@@ -1,14 +1,11 @@
 """Tests for core models and config loading."""
 
-import textwrap
 from pathlib import Path
 
-import pytest
 import yaml
 
 from conveyor_belt.config import ConveyorBeltConfig, load_config
 from conveyor_belt.models import CoverageRecord, Finding, Severity, StationResult
-
 
 # ── Models ─────────────────────────────────────────────────────────────
 

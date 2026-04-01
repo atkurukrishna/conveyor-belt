@@ -42,7 +42,7 @@ async def _exec(cmd: list[str], cwd: str, timeout: float = 60.0) -> tuple[int, s
         return proc.returncode or 0, stdout.decode(), stderr.decode()
     except FileNotFoundError:
         return 127, "", f"Command not found: {cmd[0]}"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         return 1, "", f"Command timed out after {timeout}s: {' '.join(cmd)}"
 
@@ -86,7 +86,10 @@ class IdiomaticStation(Station):
         return StationResult(
             station_name=self.name,
             passed=all(f.severity not in (Severity.CRITICAL, Severity.HIGH) for f in findings),
-            summary=f"{len(findings)} style violation(s) across {sum(len(v) for v in by_lang.values())} file(s).",
+            summary=(
+                f"{len(findings)} style violation(s) across "
+                f"{sum(len(v) for v in by_lang.values())} file(s)."
+            ),
             findings=findings,
         )
 
@@ -175,7 +178,10 @@ class IdiomaticStation(Station):
                             Finding(
                                 rule=msg.get("ruleId", "eslint") or "eslint",
                                 message=msg.get("message", ""),
-                                severity=Severity.HIGH if msg.get("severity", 1) >= 2 else Severity.MEDIUM,
+                                severity=(
+                                    Severity.HIGH if msg.get("severity", 1) >= 2
+                                    else Severity.MEDIUM
+                                ),
                                 file_path=entry.get("filePath"),
                                 line=msg.get("line"),
                             )

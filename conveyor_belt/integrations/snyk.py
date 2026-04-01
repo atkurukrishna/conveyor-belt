@@ -27,7 +27,7 @@ async def _exec(cmd: list[str], cwd: str, timeout: float = 120.0) -> tuple[int, 
         return proc.returncode or 0, stdout.decode(), stderr.decode()
     except FileNotFoundError:
         return 127, "", f"Command not found: {cmd[0]}"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         return 1, "", f"Command timed out after {timeout}s"
 

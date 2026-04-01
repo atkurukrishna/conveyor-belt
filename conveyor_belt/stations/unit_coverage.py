@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 from conveyor_belt.context import StationContext
@@ -95,7 +95,9 @@ class UnitCoverageStation(Station):
 
         overall = (
             round(
-                sum(r.lines_covered for r in relevant) / max(sum(r.lines_total for r in relevant), 1) * 100,
+                sum(r.lines_covered for r in relevant)
+                / max(sum(r.lines_total for r in relevant), 1)
+                * 100,
                 2,
             )
             if relevant
@@ -115,7 +117,7 @@ class UnitCoverageStation(Station):
     @staticmethod
     def _parse_cobertura(path: Path) -> list[CoverageRecord]:
         """Parse Cobertura XML (pytest-cov, c8, istanbul)."""
-        tree = ET.parse(path)
+        tree = ElementTree.parse(path)
         records: list[CoverageRecord] = []
         for pkg in tree.iter("package"):
             for cls in pkg.iter("class"):
@@ -131,7 +133,7 @@ class UnitCoverageStation(Station):
     @staticmethod
     def _parse_jacoco(path: Path) -> list[CoverageRecord]:
         """Parse JaCoCo XML report."""
-        tree = ET.parse(path)
+        tree = ElementTree.parse(path)
         records: list[CoverageRecord] = []
         for pkg in tree.iter("package"):
             pkg_name = pkg.get("name", "").replace("/", ".")

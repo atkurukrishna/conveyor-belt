@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -291,7 +291,11 @@ class TestMultiLanguage:
             [{"code": "F401", "message": "unused", "filename": "svc.py", "location": {"row": 1}}]
         )
         golangci_json = json.dumps(
-            {"Issues": [{"FromLinter": "errcheck", "Text": "error not checked", "Pos": {"Filename": "main.go", "Line": 5}}]}
+            {"Issues": [{
+                "FromLinter": "errcheck",
+                "Text": "error not checked",
+                "Pos": {"Filename": "main.go", "Line": 5},
+            }]}
         )
 
         async def mock_exec(cmd, cwd):

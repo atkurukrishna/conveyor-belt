@@ -28,7 +28,7 @@ class Station(abc.ABC):
         start = time.perf_counter()
         try:
             result = await asyncio.wait_for(self.run(ctx), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             result = StationResult(
                 station_name=self.name,
                 passed=False,

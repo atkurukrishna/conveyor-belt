@@ -12,7 +12,6 @@ from conveyor_belt.config import ConveyorBeltConfig
 from conveyor_belt.context import ChangedFile, StationContext
 from conveyor_belt.stations.unit_coverage import UnitCoverageStation
 
-
 # ── Fixtures: sample report content ───────────────────────────────────
 
 
@@ -237,7 +236,7 @@ class TestUnitCoverageStationRun:
             result = await station.run(ctx)
 
         assert result.passed is False
-        assert any("coverage_below_threshold" == f.rule for f in result.findings)
+        assert any(f.rule == "coverage_below_threshold" for f in result.findings)
 
     @pytest.mark.asyncio
     async def test_handles_missing_runner(self, station: UnitCoverageStation, tmp_path: Path):

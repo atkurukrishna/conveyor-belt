@@ -14,7 +14,7 @@ LINEAR_API_URL = "https://api.linear.app/graphql"
 def _get_api_key() -> str:
     key = os.environ.get("LINEAR_API_KEY", "")
     if not key:
-        raise EnvironmentError(
+        raise OSError(
             "LINEAR_API_KEY environment variable is not set. "
             "Create one at https://linear.app/settings/api"
         )
@@ -136,6 +136,8 @@ def _to_linear_issue(raw: dict) -> LinearIssue:
         title=raw.get("title", ""),
         description=raw.get("description", ""),
         state=raw.get("state", {}).get("name", ""),
-        labels=[l.get("name", "") for l in raw.get("labels", {}).get("nodes", [])],
+        labels=[
+            label.get("name", "") for label in raw.get("labels", {}).get("nodes", [])
+        ],
         sub_issues=children,
     )

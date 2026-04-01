@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -15,9 +15,8 @@ from conveyor_belt.integrations.git import (
     changed_files_from_pr,
     changed_files_from_staged,
     get_pr_body,
-    parse_issue_tags,
 )
-from conveyor_belt.models import Severity, StationResult
+from conveyor_belt.models import StationResult
 from conveyor_belt.stations.base import Station
 
 console = Console(stderr=True)
@@ -29,14 +28,15 @@ class PipelineReport(BaseModel):
     gate_passed: bool = True
     policy: str = "hard_fail"
     results: list[StationResult] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_markdown(self) -> str:
         gate_icon = "✅" if self.gate_passed else "❌"
         lines = [
             f"## {gate_icon} Conveyor Belt QA Report",
             "",
-            f"**Gate policy:** `{self.policy}` | **Result:** {'PASS' if self.gate_passed else 'FAIL'}",
+            f"**Gate policy:** `{self.policy}`"
+            f" | **Result:** {'PASS' if self.gate_passed else 'FAIL'}",
             "",
         ]
         for r in self.results:
@@ -45,8 +45,8 @@ class PipelineReport(BaseModel):
             lines.append(f"*{r.summary}* ({r.duration_seconds}s)")
             if r.findings:
                 lines.append("")
-                lines.append(f"| Severity | Rule | Message | File | Line |")
-                lines.append(f"|----------|------|---------|------|------|")
+                lines.append("| Severity | Rule | Message | File | Line |")
+                lines.append("|----------|------|---------|------|------|")
                 for f in r.findings[:25]:  # cap at 25 per station
                     lines.append(
                         f"| {f.severity.value} | `{f.rule}` | {f.message[:80]} "
@@ -171,8 +171,6 @@ class Orchestrator:
         else:
             changed = await changed_files_from_staged(self.repo_root)
 
-        issue_tags = parse_issue_tags(f"{pr_title} {pr_body}")
-
         return StationContext(
             repo_root=self.repo_root,
             pr_number=pr_number,
@@ -189,8 +187,4 @@ class Orchestrator:
             return True  # always pass, just warn
 
         # hard_fail: any station failure → gate fails
-        for r in results:
-            if not r.passed:
-                return False
-
-        return True
+        return all(r.passed for r in results)

@@ -7,7 +7,6 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-
 # ── station-level configs ──────────────────────────────────────────────
 
 class UnitCoverageConfig(BaseModel):
@@ -96,10 +95,9 @@ class ConveyorBeltConfig(BaseModel):
 
 def load_config(config_path: str | Path | None = None) -> ConveyorBeltConfig:
     """Load and validate conveyor-belt.yaml.  Falls back to defaults if missing."""
-    if config_path is None:
-        config_path = Path.cwd() / "conveyor-belt.yaml"
-    else:
-        config_path = Path(config_path)
+    config_path = (
+        Path.cwd() / "conveyor-belt.yaml" if config_path is None else Path(config_path)
+    )
 
     if not config_path.exists():
         return ConveyorBeltConfig()
