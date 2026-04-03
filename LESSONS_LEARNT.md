@@ -132,3 +132,44 @@ None of these checks enforce that new modules have test coverage.
 3. **Lines are covered** — pytest-cov measures which lines actually execute during tests (the only one that matters)
 
 Don't settle for proxy metrics when you can measure the real thing. We built a coverage station (Station 1) that does exactly this for target repos — we just weren't using it on ourselves.
+
+---
+
+## 10. Patching lazy imports at the wrong module path
+
+**Iteration count: Hit this 4 times across 2 test files (#11, #13 in the session count)**
+
+**Problem:** Several modules in this codebase use lazy imports inside functions:
+- `_build_llm()` in `agents/base.py` imports `ChatAnthropic` from `langchain_anthropic` inside the function body
+- `run()` in `cli.py` imports `Orchestrator` from `conveyor_belt.orchestrator` inside the function body
+
+When writing tests, I instinctively patched these at the *importing* module: `patch("conveyor_belt.agents.base.ChatAnthropic")`. This fails because `ChatAnthropic` is never a module-level attribute of `conveyor_belt.agents.base` — it only exists briefly as a local variable inside `_build_llm()`.
+
+**Symptom:** `AttributeError: <module 'conveyor_belt.agents.base'> does not have the attribute 'ChatAnthropic'`
+
+Made this mistake **4 times**: twice for `ChatAnthropic`/`ChatGoogleGenerativeAI`, twice for `Orchestrator`. The second pair happened *minutes after fixing the first* — proving that fixing a bug doesn't mean internalizing the lesson.
+
+**Fix:** Patch at the source module where the class is defined:
+```python
+# Wrong: patch("conveyor_belt.agents.base.ChatAnthropic")
+# Right: patch("langchain_anthropic.ChatAnthropic")
+
+# Wrong: patch("conveyor_belt.cli.Orchestrator")
+# Right: patch("conveyor_belt.orchestrator.Orchestrator")
+```
+
+**Lesson:** The standard Python mocking rule is "patch where the thing is looked up, not where it's defined." But that rule assumes the import happens at module scope. For lazy (in-function) imports, the attribute never exists on the importing module, so you must patch at the *source*. This is a footgun with deferred imports.
+
+---
+
+## 11. Import sorting (I001) is the most recurring lint violation
+
+**Iteration count: Hit in every batch of new files written across 3 sessions**
+
+**Problem:** Every time new test files were written, they arrived with unsorted imports. Ruff's I001 rule (isort-compatible ordering) was violated in `test_agents.py`, `test_integrations_and_orchestrator.py`, and `test_cli.py`. The pattern: `from __future__` not first, or stdlib imports mixed with third-party imports.
+
+**Symptom:** `ruff check` fails after every file creation, requiring a `--fix` pass.
+
+**Root cause:** When writing code quickly, import blocks are added in the order you think of them, not in sorted order. This is especially common in test files where you're importing from many different packages.
+
+**Lesson:** I001 is not a serious bug, but it's the single most frequent friction point with the linter. For test files especially, always run `ruff check --fix` immediately after creation rather than trying to get the order right by hand.

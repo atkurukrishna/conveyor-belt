@@ -61,6 +61,22 @@ All data classes use Pydantic v2 `BaseModel`. Use `Field(default_factory=...)` f
 ### Async patterns
 Stations run concurrently via `asyncio.gather`. Never block the event loop with synchronous I/O.
 
+### Testing: patching lazy imports
+This codebase uses lazy imports inside functions (e.g. `from langchain_anthropic import ChatAnthropic`
+inside `_build_llm()`, `from conveyor_belt.orchestrator import Orchestrator` inside `cli.py:run()`).
+When writing tests that mock these, patch at the **source module** where the class is defined, NOT
+at the importing module:
+```python
+# WRONG — the attribute doesn't exist at module level:
+patch("conveyor_belt.agents.base.ChatAnthropic")
+patch("conveyor_belt.cli.Orchestrator")
+
+# RIGHT — patch where the class actually lives:
+patch("langchain_anthropic.ChatAnthropic")
+patch("conveyor_belt.orchestrator.Orchestrator")
+```
+This is the #1 recurring test authoring mistake in this project (hit 4 times).
+
 ## Post-Edit Checklist
 
 After writing or editing code, ALWAYS run these commands before presenting the result:
@@ -68,9 +84,11 @@ After writing or editing code, ALWAYS run these commands before presenting the r
 1. **Lint**: `poetry run ruff check conveyor_belt/ tests/`
    - If violations found, fix them immediately
    - Do NOT present code that has lint violations
-2. **Tests**: `poetry run pytest tests/unit/ -q`
-   - All tests must pass
+   - Pay special attention to I001 (import sorting) — this is the most frequent violation
+2. **Tests + Coverage**: `poetry run pytest tests/unit/ -q --cov=conveyor_belt --cov-fail-under=85`
+   - All tests must pass AND overall coverage must be ≥85%
    - If a test fails, fix the code — not the test (unless the test itself is wrong)
+   - If coverage drops below 85%, add tests before proceeding
 
 If either check fails, fix the issues before telling the user the work is done.
 
