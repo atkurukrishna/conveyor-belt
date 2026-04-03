@@ -1,0 +1,51 @@
+version: 2.1
+
+executors:
+  python:
+    docker:
+      - image: cimg/python:3.11
+    resource_class: medium
+
+jobs:
+  conveyor-belt-qa:
+    executor: python
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - cb-deps-{{ checksum "poetry.lock" }}
+            - cb-deps-
+
+      - run:
+          name: Install dependencies
+          command: |
+            pip install poetry
+            poetry install --no-interaction
+
+      - save_cache:
+          key: cb-deps-{{ checksum "poetry.lock" }}
+          paths:
+            - ~/.cache/pypoetry
+
+      - run:
+          name: Run QA pipeline
+          command: |
+            if [ -n "$CIRCLE_PULL_REQUEST" ]; then
+              PR_NUM=$(echo "$CIRCLE_PULL_REQUEST" | grep -oE '[0-9]+$')
+              poetry run cb run --pr "$PR_NUM" --repo .
+            else
+              poetry run cb run --diff HEAD~1 --repo .
+            fi
+          no_output_timeout: 10m
+
+      - store_artifacts:
+          path: conveyor-belt-report.md
+          destination: qa-report
+
+workflows:
+  qa:
+    jobs:
+      - conveyor-belt-qa:
+          context:
+            - conveyor-belt-secrets  # SNYK_TOKEN, LINEAR_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY

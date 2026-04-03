@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+
+    environment {
+        SNYK_TOKEN     = credentials('snyk-token')
+        LINEAR_API_KEY = credentials('linear-api-key')
+        ANTHROPIC_API_KEY = credentials('anthropic-api-key')
+        GOOGLE_API_KEY = credentials('google-api-key')
+    }
+
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                    pip install poetry
+                    poetry install --no-interaction
+                '''
+            }
+        }
+
+        stage('Conveyor Belt QA') {
+            steps {
+                script {
+                    def prNumber = env.CHANGE_ID ?: ''
+                    def cbArgs = prNumber
+                        ? "--pr ${prNumber} --repo ."
+                        : "--diff HEAD~1 --repo ."
+
+                    sh "poetry run cb run ${cbArgs}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'conveyor-belt-report.md', allowEmptyArchive: true
+        }
+        failure {
+            echo 'Conveyor Belt QA pipeline failed — check findings above.'
+        }
+    }
+}
