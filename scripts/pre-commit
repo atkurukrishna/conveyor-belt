@@ -13,12 +13,19 @@ poetry run ruff check conveyor_belt/ tests/ || {
     exit 1
 }
 
-# 2. Unit tests
-echo "  → pytest"
-poetry run pytest tests/unit/ -q --tb=line || {
-    echo "❌ Tests failed."
+# 2. Unit tests + line coverage enforcement
+echo "  → pytest + coverage"
+COV_THRESHOLD=85
+poetry run pytest tests/unit/ -q --tb=line \
+    --cov=conveyor_belt --cov-report=term-missing --cov-fail-under=$COV_THRESHOLD 2>&1
+TEST_EXIT=$?
+
+if [[ $TEST_EXIT -ne 0 ]]; then
+    echo ""
+    echo "❌ Tests failed or coverage is below ${COV_THRESHOLD}%."
+    echo "  Run 'make coverage' to see the full report."
     exit 1
-}
+fi
 
 # 3. Dogfood: run the idiomatic station on staged changes
 echo "  → cb selfcheck (idiomatic station on staged diff)"

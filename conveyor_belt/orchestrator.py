@@ -76,14 +76,17 @@ def _available_stations(config: ConveyorBeltConfig) -> dict[str, Station]:
         from conveyor_belt.stations.vulnerability import VulnerabilityStation
         registry["vulnerability"] = VulnerabilityStation(config)
 
-    # Future stations registered here as they are built:
-    # if config.stations.feature_validation.enabled:
-    #     from conveyor_belt.stations.feature_validation import FeatureValidationStation
-    #     registry["feature_validation"] = FeatureValidationStation(config)
-    # if config.stations.regression.enabled:
-    #     ...
-    # if config.stations.security.enabled:
-    #     ...
+    if config.stations.feature_validation.enabled:
+        from conveyor_belt.stations.feature_validation import FeatureValidationStation
+        registry["feature_validation"] = FeatureValidationStation(config)
+
+    if config.stations.regression.enabled:
+        from conveyor_belt.stations.regression import RegressionStation
+        registry["regression"] = RegressionStation(config)
+
+    if config.stations.security.enabled:
+        from conveyor_belt.stations.security import SecurityStation
+        registry["security"] = SecurityStation(config)
 
     return registry
 

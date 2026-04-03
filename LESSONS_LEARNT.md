@@ -75,3 +75,60 @@ Issues discovered during live testing against `weight-wise` (Go + TypeScript mon
 **Impact:** This is not a bug in conveyor-belt, but it exposed a design gap — there's no way to configure per-language test commands or skip languages where the runtime isn't available.
 
 **Future improvement:** Allow config to override test commands per-language, and/or add a pre-flight check that verifies required services are available before running tests.
+
+---
+
+## 7. Pre-commit hook allowed new code without tests
+
+**Problem:** Stations 2, 3, and 6 were added (feature_validation.py, regression.py, security.py) along with orchestrator registration, staged, and committed — all without any corresponding test files. The pre-commit hook passed because:
+- `ruff check` — the new code had no lint violations
+- `pytest` — the 46 existing tests still passed (new code didn't break anything)
+- `cb run --station idiomatic` — only checks style, not test existence
+
+None of these checks enforce that new modules have test coverage.
+
+**Symptom:** Commit `ba495af` went through with 3 new station files and 0 tests for them. The pipeline that's supposed to enforce quality on itself had a blind spot.
+
+**Fix:** Added a step to the pre-commit hook that scans staged *new* files (via `git diff --cached --diff-filter=A`) under `conveyor_belt/stations/`, `agents/`, and `integrations/`, and checks that at least one test file under `tests/` references the module name. If not, the commit is blocked.
+
+**Lesson:** Lint + passing tests + style checks are necessary but not sufficient. A QA pipeline must also enforce that new code *has* tests — otherwise it's validating the old code, not the new code. This is the "test coverage for the test coverage tool" problem: who watches the watchers?
+
+---
+
+## 8. Grep-based test existence check had false negatives
+
+**Iteration count: 2nd fix to the same pre-commit check (lesson 7 → 7a → 8)**
+
+**Problem:** The first fix for lesson 7 used `grep -l "$basename"` to check if a test file references a module. This matched on *any substring*. The module `security` appeared inside `test_station_vulnerability.py` in Snyk SARIF test data (strings like `"go/HardcodedPassword"`), so `security.py` falsely appeared to have test coverage.
+
+**Symptom:** Pre-commit caught `feature_validation.py` and `regression.py` but let `security.py` through.
+
+**Fix:** Tightened the grep to `grep -rl "import.*${basename}\|from.*${basename}"` so it matches import statements, not arbitrary substrings.
+
+**Lesson:** When checking for test coverage by grepping filenames, match on the *import pattern* (`from X import` / `import X`), not just the module name as a substring. Substring matching in a codebase full of domain terms ("security", "auth", "test") will always produce false matches.
+
+---
+
+## 9. "Test file exists" check is not the same as "code is tested"
+
+**Iteration count: 3rd approach to the same problem (grep existence → grep import → actual coverage)**
+
+**Problem:** Even after fixing the grep (lesson 8), the check only verified that a test file *imports* the module — not that the tests actually *exercise* the code. Running `pytest --cov` revealed 39% overall coverage. Modules like `cli.py`, `orchestrator.py`, `integrations/git.py`, and all three agent files had 0% line coverage despite the project having 46 passing tests.
+
+**Symptom:** `make coverage` showed the real picture:
+- `feature_validation.py`: 0%
+- `regression.py`: 0%
+- `security.py`: 0%
+- `agents/base.py`: 0%
+- `cli.py`: 0%
+- `orchestrator.py`: 0%
+- Overall: 39%
+
+**Fix:** Replaced the grep-based check with `pytest --cov=conveyor_belt --cov-fail-under=85` in the pre-commit hook. This runs actual tests and measures real line coverage. The commit is blocked if overall coverage drops below 85%.
+
+**Lesson:** There are three levels of "has tests", each progressively more honest:
+1. **File exists** — a test file with the right name exists (meaningless)
+2. **Import exists** — a test file imports the module (slightly better, still meaningless)
+3. **Lines are covered** — pytest-cov measures which lines actually execute during tests (the only one that matters)
+
+Don't settle for proxy metrics when you can measure the real thing. We built a coverage station (Station 1) that does exactly this for target repos — we just weren't using it on ourselves.
