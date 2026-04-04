@@ -10,3 +10,8 @@ coverage.xml
 coverage.out
 htmlcov/
 .mypy_cache/
+
+# Bazel
+bazel-*
+MODULE.bazel
+MODULE.bazel.lock

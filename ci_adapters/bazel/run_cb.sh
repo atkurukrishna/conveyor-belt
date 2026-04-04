@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+# When run by Bazel, BUILD_WORKSPACE_DIRECTORY points to the real repo root
+if [[ -n "${BUILD_WORKSPACE_DIRECTORY:-}" ]]; then
+    cd "${BUILD_WORKSPACE_DIRECTORY}"
+fi
+
 DIFF_REF="${CB_DIFF_REF:-HEAD~1}"
 REPO="${CB_REPO:-.}"
 STATIONS="${CB_STATIONS:-}"
