@@ -173,3 +173,24 @@ Made this mistake **4 times**: twice for `ChatAnthropic`/`ChatGoogleGenerativeAI
 **Root cause:** When writing code quickly, import blocks are added in the order you think of them, not in sorted order. This is especially common in test files where you're importing from many different packages.
 
 **Lesson:** I001 is not a serious bug, but it's the single most frequent friction point with the linter. For test files especially, always run `ruff check --fix` immediately after creation rather than trying to get the order right by hand.
+
+---
+
+## 12. GitHub Actions workflow ran the pipeline twice — and posted nothing
+
+**Problem:** The GitHub Actions workflow had two steps that both ran `cb run`:
+1. "Run QA pipeline" — `poetry run cb run --pr ${{ ... }}`
+2. "Post results as PR comment" — re-ran the same command inside `execSync()` to capture output
+
+The first run worked correctly. The second run (inside JavaScript `execSync`) also ran `cb run`, but when it hit a non-zero exit code, `execSync` threw an exception. The `catch` block logged `e.stdout` but never posted a PR comment.
+
+**Symptom:** PR #1 on GitHub showed a failed CI check but no QA report comment. The "Post results as PR comment" step showed status `success` (because the catch block didn't re-throw), masking the fact that nothing was posted.
+
+**Fix:** Changed the workflow to:
+1. Pipe the first run's output to `/tmp/cb-report.txt` via `tee`
+2. Use `set +e` so the step doesn't fail on non-zero exit
+3. Capture the exit code via `$GITHUB_OUTPUT`
+4. The comment step reads the file instead of re-running the pipeline
+5. A separate "Fail if gate failed" step checks the captured exit code
+
+**Lesson:** Never run an expensive operation twice just to capture its output. Use `tee` or redirect to a file on the first run. Also: a `catch` block that silently swallows errors and reports `success` is the CI equivalent of lesson #3 (silent error swallowing). The pattern repeats across domains — subprocess errors, pre-commit grep, and now CI workflows.
