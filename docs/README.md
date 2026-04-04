@@ -2,6 +2,8 @@
 
 Agentic conveyor-belt QA pipeline for code check-ins.
 
+[![CI](https://github.com/atkurukrishna/conveyor-belt/actions/workflows/conveyor-belt.yml/badge.svg)](https://github.com/atkurukrishna/conveyor-belt/actions)
+
 ## Quick Start
 
 ```bash
