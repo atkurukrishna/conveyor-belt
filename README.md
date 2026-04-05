@@ -96,6 +96,9 @@ poetry install
 poetry shell
 ```
 
+### Dogfooding (Pre-commit Hooks)
+Conveyor Belt heavily dogfoods its own code! We utilize `pre-commit` hooks containing Conveyor Belt tests and runs for all our codebase changes. Thus, `ruff` checks and the `pytest --cov` >=85% lines checks automatically run against your changed files when you attempt a `git commit`.
+
 ### Adding or Modifying Stations
 - **Station Base Class:** Every station inherits from `Station` (located in `stations/base.py`). 
 - **The Execution Wrapper:** Implement the async logic explicitly in `async def run(self, ctx: StationContext) -> StationResult`. Do NOT override the `execute()` method; it strictly controls timing and timeouts (default 300s).
