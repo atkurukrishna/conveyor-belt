@@ -287,6 +287,41 @@ class TestFetchTeamIssues:
             )
         assert issues == []
 
+class TestLinearQuery:
+    @pytest.mark.asyncio
+    async def test_query_success(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from conveyor_belt.integrations.linear import _query
+        mock_resp = AsyncMock()
+        mock_resp.json = MagicMock(return_value={"data": {"foo": "bar"}})
+
+        @pytest.fixture(autouse=True)
+        def mock_env(monkeypatch):
+            monkeypatch.setenv("LINEAR_API_KEY", "test_key")
+
+        with (
+            patch("os.environ.get", return_value="test_key"),
+            patch("httpx.AsyncClient.post", return_value=mock_resp),
+        ):
+            data = await _query("query { foo }")
+            assert data == {"foo": "bar"}
+
+    @pytest.mark.asyncio
+    async def test_query_graphql_error(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from conveyor_belt.integrations.linear import _query
+        mock_resp = AsyncMock()
+        mock_resp.json = MagicMock(return_value={"errors": [{"message": "Bad request"}]})
+
+        with (
+            patch("os.environ.get", return_value="test_key"),
+            patch("httpx.AsyncClient.post", return_value=mock_resp),
+            pytest.raises(RuntimeError, match="Linear API errors"),
+        ):
+            await _query("query { foo }")
+
 
 # ── Snyk integration (missing coverage) ────────────────────────────────
 
