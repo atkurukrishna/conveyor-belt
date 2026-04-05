@@ -323,3 +323,146 @@ class TestMultiLanguage:
         rules = {f.rule for f in result.findings}
         assert "F401" in rules
         assert "errcheck" in rules
+
+# ── Exceptions and fallbacks ───────────────────────────────────────────
+
+class TestExceptionsAndFallbacks:
+    @pytest.mark.asyncio
+    async def test_exec_file_not_found(self):
+        from conveyor_belt.stations.idiomatic import _exec
+        with patch("asyncio.create_subprocess_exec", side_effect=FileNotFoundError):
+            rc, stdout, stderr = await _exec(["missing"], ".")
+            assert rc == 127
+            assert "Command not found" in stderr
+
+    @pytest.mark.asyncio
+    async def test_exec_timeout(self):
+        from unittest.mock import AsyncMock
+
+        from conveyor_belt.stations.idiomatic import _exec
+        mock_proc = AsyncMock()
+        mock_proc.communicate.side_effect = TimeoutError
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            rc, stdout, stderr = await _exec(["slow"], ".", timeout=0.1)
+            assert rc == 1
+            assert "timed out" in stderr
+
+    @pytest.mark.asyncio
+    async def test_ruff_json_decode_error(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_exec(cmd, cwd):
+            if "ruff" in cmd:
+                return 1, "invalid json", ""
+            return 0, "", ""
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.py", status="modified")], ["python"])
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            result = await station.run(ctx)
+        assert len(result.findings) == 0
+
+    @pytest.mark.asyncio
+    async def test_eslint_json_decode_error(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_exec(cmd, cwd):
+            return 1, "invalid json", ""
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.ts", status="modified")], ["typescript"])
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            result = await station.run(ctx)
+        assert len(result.findings) == 0
+
+    @pytest.mark.asyncio
+    async def test_eslint_unavailable(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_exec(cmd, cwd):
+            return 127, "", "Command not found: eslint"
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.ts", status="modified")], ["typescript"])
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            result = await station.run(ctx)
+        assert len(result.findings) == 1
+        assert "Command not found" in result.findings[0].message
+
+    @pytest.mark.asyncio
+    async def test_ts_cwd_resolution(self, station: IdiomaticStation, tmp_path: Path):
+        # Create a nested node_modules folder
+        nested = tmp_path / "frontend" / "web"
+        nested.mkdir(parents=True)
+        (nested / "node_modules").mkdir()
+        (nested / "node_modules" / ".bin").mkdir(parents=True)
+        (nested / "node_modules" / ".bin" / "eslint").touch()
+
+        ctx = _make_ctx(
+            tmp_path,
+            [ChangedFile(path="frontend/web/app/page.tsx", status="modified")],
+            ["typescript"]
+        )
+
+        # Capture the _exec call to see what cwd and cmd was used
+        exec_calls = []
+        async def mock_exec(cmd, cwd):
+            exec_calls.append((cmd, cwd))
+            return 0, "[]", ""
+
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            await station.run(ctx)
+
+        assert len(exec_calls) == 1
+        cmd, cwd = exec_calls[0]
+        assert "frontend/web" in cwd
+        assert "eslint" in cmd[1]
+
+    @pytest.mark.asyncio
+    async def test_ts_cwd_resolution_nextjs(self, station: IdiomaticStation, tmp_path: Path):
+        nested = tmp_path / "next-app"
+        nested.mkdir(parents=True)
+        (nested / "node_modules").mkdir()
+        (nested / "node_modules" / ".bin").mkdir(parents=True)
+        (nested / "node_modules" / ".bin" / "next").touch()
+
+        ctx = _make_ctx(
+            tmp_path,
+            [ChangedFile(path="next-app/app/page.tsx", status="modified")],
+            ["typescript"]
+        )
+
+        exec_calls = []
+        async def mock_exec(cmd, cwd):
+            exec_calls.append(cmd)
+            return 0, "[]", ""
+
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            await station.run(ctx)
+
+        assert len(exec_calls) == 1
+        cmd = exec_calls[0]
+        assert "next" not in cmd[1] # Actually it should still call eslint
+        assert "eslint" in cmd
+
+    @pytest.mark.asyncio
+    async def test_golangci_unavailable(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_exec(cmd, cwd):
+            return 127, "", "Command not found: golangci-lint"
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.go", status="modified")], ["go"])
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            result = await station.run(ctx)
+        assert len(result.findings) == 1
+        assert "Command not found" in result.findings[0].message
+
+    @pytest.mark.asyncio
+    async def test_golangci_json_decode_error(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_exec(cmd, cwd):
+            return 1, "invalid json", ""
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.go", status="modified")], ["go"])
+        with patch("conveyor_belt.stations.idiomatic._exec", side_effect=mock_exec):
+            result = await station.run(ctx)
+        assert len(result.findings) == 0
+
+    @pytest.mark.asyncio
+    async def test_catch_gather_exceptions(self, station: IdiomaticStation, tmp_path: Path):
+        async def mock_lint(*args, **kwargs):
+            raise RuntimeError("Unexpected task error")
+        ctx = _make_ctx(tmp_path, [ChangedFile(path="a.py", status="modified")], ["python"])
+        with patch.object(station, "_lint", side_effect=mock_lint):
+            res = await station.run(ctx)
+            err_findings = [f for f in res.findings if f.rule == "lint_error"]
+            assert len(err_findings) == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_language(self, station: IdiomaticStation, tmp_path: Path):
+        res = await station._lint("rust", ["a.rs"], str(tmp_path))
+        assert res == []
