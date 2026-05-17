@@ -115,6 +115,8 @@
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { opacity: 0.88; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-demo { background: var(--surface2); color: #a5b4fc; border: 1px solid var(--border); }
+    .btn-demo:hover { border-color: var(--accent); }
 
     /* ── Gate banner ───────────────────────────────────────── */
     #gate-bar {
@@ -386,6 +388,7 @@
       <input id="inp-pr" type="number" min="1" placeholder="42">
     </div>
     <button id="run-btn" class="btn btn-primary" onclick="startRun()">▶ Run Pipeline</button>
+    <button class="btn btn-demo" onclick="runDemo()">🎬 Demo</button>
   </div>
 </header>
 
@@ -644,6 +647,99 @@ function esc(s) {
 // ── Belt animation ───────────────────────────────────────────────
 function beltStart() { document.getElementById('belt-fill').classList.remove('paused'); }
 function beltStop()  { document.getElementById('belt-fill').classList.add('paused');    }
+
+// ── Demo mode ────────────────────────────────────────────────────
+const DEMO_SCRIPT = [
+  // t=0  — kick off
+  { t: 0,    msg: { type: 'status', status: 'running' } },
+  { t: 80,   msg: { type: 'context', changed_files: 14, languages: ['python', 'typescript'] } },
+  { t: 150,  msg: { type: 'stations_init', stations: ['unit_coverage','idiomatic','vulnerability','feature_validation','regression','security'] } },
+
+  // All stations start nearly simultaneously (parallel execution)
+  { t: 300,  msg: { type: 'station_start', station: 'unit_coverage' } },
+  { t: 320,  msg: { type: 'station_start', station: 'idiomatic' } },
+  { t: 340,  msg: { type: 'station_start', station: 'vulnerability' } },
+  { t: 360,  msg: { type: 'station_start', station: 'feature_validation' } },
+  { t: 380,  msg: { type: 'station_start', station: 'regression' } },
+  { t: 400,  msg: { type: 'station_start', station: 'security' } },
+
+  // Idiomatic finishes first — 2 style findings, passes
+  { t: 1800, msg: { type: 'station_complete', station: 'idiomatic', result: {
+    passed: true, duration_seconds: 1.47, summary: 'No style violations.',
+    findings: [
+      { rule: 'E501', severity: 'low', message: 'Line too long (102 > 100 characters)', file_path: 'conveyor_belt/orchestrator.py', line: 47 },
+      { rule: 'I001', severity: 'info', message: 'Import block is un-sorted / un-formatted', file_path: 'conveyor_belt/server.py', line: 3 },
+    ]
+  }}},
+
+  // Coverage passes — one file below threshold
+  { t: 2600, msg: { type: 'station_complete', station: 'unit_coverage', result: {
+    passed: true, duration_seconds: 2.31, summary: '87.4 % overall coverage (threshold 85 %).',
+    findings: [
+      { rule: 'coverage/below-threshold', severity: 'low', message: 'conveyor_belt/integrations/snyk.py — 71.2 % coverage (85 % required)', file_path: 'conveyor_belt/integrations/snyk.py', line: null },
+    ]
+  }}},
+
+  // Feature validation passes with no findings
+  { t: 3400, msg: { type: 'station_complete', station: 'feature_validation', result: {
+    passed: true, duration_seconds: 3.08, summary: '4 / 4 acceptance criteria covered by tests.',
+    findings: []
+  }}},
+
+  // Regression passes
+  { t: 3900, msg: { type: 'station_complete', station: 'regression', result: {
+    passed: true, duration_seconds: 3.52, summary: 'No regression risk detected against 12 historical issues.',
+    findings: []
+  }}},
+
+  // Vulnerability — FAILS with a high-severity CVE
+  { t: 4800, msg: { type: 'station_complete', station: 'vulnerability', result: {
+    passed: false, duration_seconds: 4.41, summary: '1 critical, 2 high vulnerabilities found.',
+    findings: [
+      { rule: 'CVE-2024-35195', severity: 'critical', message: 'requests: Certificate verification bypass via redirect to HTTPS URL with auth credentials', file_path: 'requirements.txt', line: null, cve_id: 'CVE-2024-35195' },
+      { rule: 'CVE-2024-37891', severity: 'high',     message: 'urllib3: Proxy-Authorization request header is not stripped during cross-origin redirects', file_path: 'requirements.txt', line: null, cve_id: 'CVE-2024-37891' },
+      { rule: 'CVE-2023-32681', severity: 'high',     message: 'requests: Unintended leak of Proxy-Authorization header', file_path: 'requirements.txt', line: null, cve_id: 'CVE-2023-32681' },
+    ]
+  }}},
+
+  // Security — FAILS with injection risk
+  { t: 5500, msg: { type: 'station_complete', station: 'security', result: {
+    passed: false, duration_seconds: 5.14, summary: '1 high, 1 medium security finding.',
+    findings: [
+      { rule: 'B602', severity: 'high',   message: 'subprocess call with shell=True — possible injection vector', file_path: 'conveyor_belt/integrations/git.py', line: 38 },
+      { rule: 'B105', severity: 'medium', message: 'Possible hardcoded password: "test_secret"', file_path: 'tests/unit/test_integrations_and_orchestrator.py', line: 112 },
+    ]
+  }}},
+
+  // Pipeline complete — gate FAILED
+  { t: 5700, msg: { type: 'pipeline_complete', report: { gate_passed: false, policy: 'hard_fail' } } },
+];
+
+function runDemo() {
+  // Reset everything first
+  if (ws) { ws.close(); ws = null; }
+  _running = true;
+  allFindings = [];
+  renderFindings();
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('context-info').textContent = '';
+  document.getElementById('stations-row').innerHTML =
+    '<div class="empty-belt">Loading demo…</div>';
+
+  let cancelled = false;
+  window._demoCancel = () => { cancelled = true; };
+
+  for (const step of DEMO_SCRIPT) {
+    const m = step.msg;
+    setTimeout(() => {
+      if (!cancelled) handleMsg(m);
+    }, step.t);
+  }
+  // Re-enable run button after demo ends
+  setTimeout(() => {
+    if (!cancelled) document.getElementById('run-btn').disabled = false;
+  }, 6000);
+}
 
 // ── Start run ────────────────────────────────────────────────────
 async function startRun() {
