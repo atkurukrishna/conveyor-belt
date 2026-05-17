@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conveyor Belt QA</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #09090f;
+      --surface:  #111120;
+      --surface2: #181828;
+      --border:   #252540;
+      --text:     #dde0f0;
+      --muted:    #5a5c7a;
+      --accent:   #6366f1;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --yellow:   #eab308;
+      --orange:   #f97316;
+      --blue:     #3b82f6;
+      --gray:     #6b7280;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(160deg, #14143a 0%, #0c0c20 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      white-space: nowrap;
+    }
+    .brand-icon { font-size: 1.6rem; }
+    .brand h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #818cf8 0%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .brand sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: block;
+      -webkit-text-fill-color: var(--muted);
+      background: none;
+      margin-top: -4px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .field-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .field-group label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    input[type="text"], input[type="number"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 140px;
+    }
+    input[type="number"] { width: 80px; }
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    .btn {
+      padding: 0.45rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ── Gate banner ───────────────────────────────────────── */
+    #gate-bar {
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.4s;
+      min-height: 46px;
+    }
+
+    .gate-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: all 0.3s;
+    }
+    .gate-pill.idle    { background: rgba(107,114,128,.15); color: var(--gray); }
+    .gate-pill.running { background: rgba(99,102,241,.18); color: #a5b4fc; }
+    .gate-pill.pass    { background: rgba(34,197,94,.15);  color: #4ade80; }
+    .gate-pill.fail    { background: rgba(239,68,68,.15);  color: #f87171; }
+    .gate-pill.error   { background: rgba(249,115,22,.15); color: #fb923c; }
+
+    #gate-info { font-size: 0.8rem; color: var(--muted); }
+    #context-info { font-size: 0.78rem; color: var(--muted); margin-left: auto; }
+
+    /* ── Main layout ───────────────────────────────────────── */
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 1480px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Belt section ──────────────────────────────────────── */
+    .belt-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.2rem;
+    }
+
+    /* Station cards row */
+    #stations-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .station-card {
+      flex: 1;
+      min-width: 120px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      cursor: default;
+    }
+    .station-card.running {
+      border-color: #6366f1;
+      box-shadow: 0 0 18px rgba(99,102,241,.25);
+    }
+    .station-card.passed {
+      border-color: #22c55e;
+      box-shadow: 0 0 14px rgba(34,197,94,.18);
+    }
+    .station-card.failed {
+      border-color: #ef4444;
+      box-shadow: 0 0 14px rgba(239,68,68,.18);
+    }
+
+    .s-icon  { font-size: 1.6rem; line-height: 1; }
+    .s-name  { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; text-align: center; }
+    .s-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .s-badge.pending { background: rgba(107,114,128,.2); color: var(--gray); }
+    .s-badge.running { background: rgba(99,102,241,.2);  color: #a5b4fc; animation: blink 1.2s ease-in-out infinite; }
+    .s-badge.passed  { background: rgba(34,197,94,.2);   color: #4ade80; }
+    .s-badge.failed  { background: rgba(239,68,68,.2);   color: #f87171; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+    .s-meta { font-size: 0.68rem; color: var(--muted); text-align: center; min-height: 1em; }
+
+    /* Placeholder when no run yet */
+    .empty-belt {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 1.5rem 0;
+    }
+
+    /* Belt track */
+    .belt-track {
+      height: 52px;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+      border: 3px solid #1e1e38;
+      box-shadow: inset 0 3px 10px rgba(0,0,0,.5);
+    }
+    .belt-fill {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        #141428 0px, #141428 22px,
+        #1a1a35 22px, #1a1a35 44px
+      );
+      animation: beltScroll 1.4s linear infinite;
+    }
+    .belt-fill.paused { animation-play-state: paused; }
+    @keyframes beltScroll {
+      from { background-position: 0 0; }
+      to   { background-position: 44px 0; }
+    }
+
+    /* Roller caps on each end */
+    .belt-roller {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 44px;
+      background: radial-gradient(circle at 50% 50%, #3a3a5c 20%, #1a1a32 80%);
+      z-index: 2;
+    }
+    .belt-roller.l { left: 0; border-radius: 999px 0 0 999px; }
+    .belt-roller.r { right: 0; border-radius: 0 999px 999px 0; }
+
+    /* ── Findings section ──────────────────────────────────── */
+    .findings-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .findings-header {
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .findings-header h2 { font-size: 0.85rem; font-weight: 700; }
+    .count-chip {
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .findings-scroll { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    thead th {
+      background: var(--surface2);
+      padding: 0.6rem 1rem;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid rgba(37,37,64,.6);
+      vertical-align: top;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.018); }
+
+    .sev {
+      display: inline-block;
+      padding: 0.13rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .sev-critical { background: rgba(239,68,68,.25);  color: #fca5a5; }
+    .sev-high     { background: rgba(249,115,22,.25); color: #fdba74; }
+    .sev-medium   { background: rgba(234,179,8,.25);  color: #fde047; }
+    .sev-low      { background: rgba(59,130,246,.25); color: #93c5fd; }
+    .sev-info     { background: rgba(107,114,128,.25);color: #9ca3af; }
+
+    .code-pill {
+      background: rgba(99,102,241,.12);
+      color: #a5b4fc;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Menlo', monospace;
+      font-size: 0.78rem;
+    }
+    .filepath { color: var(--muted); font-family: monospace; font-size: 0.78rem; }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<header>
+  <div class="brand">
+    <span class="brand-icon">🏭</span>
+    <div>
+      <h1>Conveyor Belt QA</h1>
+      <sub>Agentic pipeline dashboard</sub>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field-group">
+      <label>Repo</label>
+      <input id="inp-repo" type="text" value="." placeholder="/path/to/repo">
+    </div>
+    <div class="field-group">
+      <label>Diff</label>
+      <input id="inp-diff" type="text" placeholder="HEAD~1">
+    </div>
+    <div class="field-group">
+      <label>PR #</label>
+      <input id="inp-pr" type="number" min="1" placeholder="42">
+    </div>
+    <button id="run-btn" class="btn btn-primary" onclick="startRun()">▶ Run Pipeline</button>
+  </div>
+</header>
+
+<!-- ── Gate banner ─────────────────────────────────────────────── -->
+<div id="gate-bar">
+  <span id="gate-pill" class="gate-pill idle">⏸ Idle</span>
+  <span id="gate-info"></span>
+  <span id="context-info"></span>
+</div>
+
+<!-- ── Main ────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Belt section -->
+  <section class="belt-section">
+    <div class="section-title">Pipeline Stations</div>
+
+    <div id="stations-row">
+      <div class="empty-belt">No active run — click <strong>▶ Run Pipeline</strong> to start.</div>
+    </div>
+
+    <div class="belt-track">
+      <div id="belt-fill" class="belt-fill paused"></div>
+      <div class="belt-roller l"></div>
+      <div class="belt-roller r"></div>
+    </div>
+  </section>
+
+  <!-- Findings section -->
+  <section class="findings-section">
+    <div class="findings-header">
+      <h2>Findings</h2>
+      <span id="findings-count" class="count-chip">0</span>
+    </div>
+    <div class="findings-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Station</th>
+            <th>Rule</th>
+            <th>Message</th>
+            <th>File</th>
+            <th>Line</th>
+          </tr>
+        </thead>
+        <tbody id="findings-body">
+          <tr><td colspan="6">
+            <div class="empty-state">
+              <div class="icon">🔍</div>
+              <p>Findings will appear here as stations complete.</p>
+            </div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script>
+'use strict';
+
+// ── Station metadata ─────────────────────────────────────────────
+const STATION_META = {
+  unit_coverage:      { icon: '🎯', label: 'Coverage' },
+  idiomatic:          { icon: '✨', label: 'Idiomatic' },
+  vulnerability:      { icon: '🛡️', label: 'Vulns' },
+  feature_validation: { icon: '🧪', label: 'Features' },
+  regression:         { icon: '🔄', label: 'Regression' },
+  security:           { icon: '🔒', label: 'Security' },
+};
+
+// ── State ────────────────────────────────────────────────────────
+let ws = null;
+let currentRunId = null;
+let allFindings = [];
+
+// ── WebSocket ────────────────────────────────────────────────────
+function connectWS(runId) {
+  if (ws) { ws.close(); ws = null; }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws/' + runId);
+  ws.onmessage = e => handleMsg(JSON.parse(e.data));
+  ws.onerror   = ()  => setGate('error', '💥 Connection error', '');
+  ws.onclose   = ()  => { if (_running) setGate('error', '💥 Disconnected', ''); };
+}
+
+let _running = false;
+
+// ── Message handler ──────────────────────────────────────────────
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'state':          restoreState(msg.data); break;
+    case 'status':         onStatus(msg.status);   break;
+    case 'context':        onContext(msg);          break;
+    case 'stations_init':  initStations(msg.stations); break;
+    case 'station_start':  stationStart(msg.station);  break;
+    case 'station_complete': stationComplete(msg.station, msg.result); break;
+    case 'pipeline_complete': pipelineComplete(msg.report); break;
+    case 'error':          onError(msg.message);   break;
+  }
+}
+
+// ── Restore state (WebSocket late-join) ──────────────────────────
+function restoreState(data) {
+  if (!data) return;
+  onStatus(data.status);
+  const names = Object.keys(data.stations || {});
+  if (names.length) {
+    initStations(names);
+    for (const [name, info] of Object.entries(data.stations)) {
+      if (info.status === 'running')   stationStart(name);
+      if (info.status === 'complete')  stationComplete(name, info.result);
+    }
+  }
+  if (data.report) pipelineComplete(data.report);
+  if (data.error)  onError(data.error);
+}
+
+// ── Gate banner helpers ──────────────────────────────────────────
+function setGate(cls, label, info) {
+  const pill = document.getElementById('gate-pill');
+  pill.className = 'gate-pill ' + cls;
+  pill.textContent = label;
+  document.getElementById('gate-info').textContent = info;
+}
+
+function onStatus(status) {
+  const map = {
+    pending:  ['running', '⚙️ Starting…',      ''],
+    running:  ['running', '⚙️ Running…',        ''],
+    complete: ['pass',    '✅ Complete',         ''],
+    error:    ['error',   '💥 Error',            ''],
+    idle:     ['idle',    '⏸ Idle',             ''],
+  };
+  const [cls, label, info] = map[status] || map.idle;
+  setGate(cls, label, info);
+  _running = (status === 'running' || status === 'pending');
+  if (_running) beltStart(); else beltStop();
+}
+
+function onContext(msg) {
+  document.getElementById('context-info').textContent =
+    msg.changed_files + ' file(s) · Languages: ' + (msg.languages || []).join(', ');
+}
+
+// ── Station rendering ────────────────────────────────────────────
+function initStations(names) {
+  allFindings = [];
+  renderFindings();
+  document.getElementById('context-info').textContent = '';
+
+  const row = document.getElementById('stations-row');
+  row.innerHTML = '';
+  for (const name of names) {
+    const meta = STATION_META[name] || { icon: '⚙️', label: name };
+    const card = document.createElement('div');
+    card.id = 'sc-' + name;
+    card.className = 'station-card';
+    card.innerHTML =
+      '<span class="s-icon">' + meta.icon + '</span>' +
+      '<span class="s-name">' + meta.label + '</span>' +
+      '<span id="sb-' + name + '" class="s-badge pending">Pending</span>' +
+      '<span id="sm-' + name + '" class="s-meta"></span>';
+    row.appendChild(card);
+  }
+}
+
+function stationStart(name) {
+  const card  = document.getElementById('sc-' + name);
+  const badge = document.getElementById('sb-' + name);
+  if (!card) return;
+  card.className  = 'station-card running';
+  badge.className = 's-badge running';
+  badge.textContent = 'Running';
+  beltStart();
+}
+
+function stationComplete(name, result) {
+  if (!result) return;
+  const passed = result.passed;
+  const card   = document.getElementById('sc-' + name);
+  const badge  = document.getElementById('sb-' + name);
+  const meta   = document.getElementById('sm-' + name);
+  if (!card) return;
+  card.className  = 'station-card ' + (passed ? 'passed' : 'failed');
+  badge.className = 's-badge ' + (passed ? 'passed' : 'failed');
+  badge.textContent = passed ? '✓ Passed' : '✗ Failed';
+  const dur = (result.duration_seconds || 0).toFixed(1);
+  const fc  = (result.findings || []).length;
+  meta.textContent = dur + 's' + (fc ? ' · ' + fc + ' finding' + (fc !== 1 ? 's' : '') : '');
+
+  for (const f of (result.findings || [])) {
+    allFindings.push({ ...f, _station: name });
+  }
+  renderFindings();
+}
+
+function pipelineComplete(report) {
+  _running = false;
+  beltStop();
+  document.getElementById('run-btn').disabled = false;
+  const passed = report.gate_passed;
+  setGate(
+    passed ? 'pass' : 'fail',
+    passed ? '✅ Gate Passed' : '❌ Gate Failed',
+    'Policy: ' + (report.policy || '')
+  );
+}
+
+function onError(msg) {
+  _running = false;
+  beltStop();
+  document.getElementById('run-btn').disabled = false;
+  setGate('error', '💥 Error', msg || '');
+}
+
+// ── Findings table ───────────────────────────────────────────────
+function renderFindings() {
+  const tbody = document.getElementById('findings-body');
+  const chip  = document.getElementById('findings-count');
+  chip.textContent = allFindings.length;
+
+  if (!allFindings.length) {
+    tbody.innerHTML =
+      '<tr><td colspan="6"><div class="empty-state">' +
+      '<div class="icon">🔍</div><p>No findings yet.</p></div></td></tr>';
+    return;
+  }
+
+  const sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const sorted = allFindings.slice().sort((a, b) =>
+    (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9)
+  );
+
+  tbody.innerHTML = sorted.map(f => {
+    const sLabel = STATION_META[f._station]?.label || f._station || '';
+    return '<tr>' +
+      '<td><span class="sev sev-' + esc(f.severity) + '">' + esc(f.severity) + '</span></td>' +
+      '<td>' + esc(sLabel) + '</td>' +
+      '<td><span class="code-pill">' + esc(f.rule) + '</span></td>' +
+      '<td>' + esc((f.message || '').substring(0, 120)) + (f.message && f.message.length > 120 ? '…' : '') + '</td>' +
+      '<td class="filepath">' + esc(f.file_path || '—') + '</td>' +
+      '<td>' + esc(f.line != null ? String(f.line) : '—') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Belt animation ───────────────────────────────────────────────
+function beltStart() { document.getElementById('belt-fill').classList.remove('paused'); }
+function beltStop()  { document.getElementById('belt-fill').classList.add('paused');    }
+
+// ── Start run ────────────────────────────────────────────────────
+async function startRun() {
+  const repo = document.getElementById('inp-repo').value.trim() || '.';
+  const diff = document.getElementById('inp-diff').value.trim() || null;
+  const prRaw = document.getElementById('inp-pr').value.trim();
+  const pr   = prRaw ? parseInt(prRaw, 10) : null;
+
+  document.getElementById('run-btn').disabled = true;
+  setGate('running', '⚙️ Starting…', '');
+  document.getElementById('context-info').textContent = '';
+  document.getElementById('stations-row').innerHTML =
+    '<div class="empty-belt">Connecting to pipeline…</div>';
+  allFindings = [];
+  renderFindings();
+
+  try {
+    const res = await fetch('/api/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, diff, pr }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const { run_id } = await res.json();
+    currentRunId = run_id;
+    _running = true;
+    connectWS(run_id);
+  } catch (err) {
+    onError(String(err));
+  }
+}
+</script>
+</body>
+</html>
