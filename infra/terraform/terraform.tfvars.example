@@ -1,0 +1,18 @@
+aws_region    = "us-east-1"
+app_name      = "conveyor-belt"
+environment   = "dev"
+
+# Compute
+cpu           = 512    # 0.5 vCPU
+memory        = 1024   # 1 GB
+desired_count = 1
+
+# Networking
+vpc_cidr  = "10.0.0.0/16"
+az_count  = 2
+
+# Logging
+log_retention_days = 30
+
+# Set by CI after `docker build && docker push`:
+# container_image = "123456789.dkr.ecr.us-east-1.amazonaws.com/conveyor-belt-dev:v1.2.3"
