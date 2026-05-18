@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from conveyor_belt.config import load_config
 from conveyor_belt.context import StationContext
@@ -43,7 +43,7 @@ class RunRequest(BaseModel):
     pr: int | None = None
     diff: str | None = None
     config_path: str | None = None
-    stations: list[str] = []
+    stations: list[str] = Field(default_factory=list)
 
 
 # ── REST endpoints ─────────────────────────────────────────────────────
@@ -82,16 +82,21 @@ async def create_run(req: RunRequest) -> dict[str, str]:
 
 @app.websocket("/ws/{run_id}")
 async def ws_endpoint(ws: WebSocket, run_id: str) -> None:
+    if run_id not in _runs:
+        await ws.close(code=4404)
+        return
     await ws.accept()
     _sockets.setdefault(run_id, []).append(ws)
-    if run_id in _runs:
-        await _send(ws, {"type": "state", "data": _runs[run_id]})
+    await _send(ws, {"type": "state", "data": _runs[run_id]})
     try:
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
-        if ws in _sockets.get(run_id, []):
-            _sockets[run_id].remove(ws)
+        socks = _sockets.get(run_id, [])
+        if ws in socks:
+            socks.remove(ws)
+        if not socks:
+            _sockets.pop(run_id, None)
 
 
 async def _broadcast(run_id: str, msg: dict[str, Any]) -> None:
@@ -104,6 +109,8 @@ async def _broadcast(run_id: str, msg: dict[str, Any]) -> None:
     for ws in dead:
         if ws in _sockets.get(run_id, []):
             _sockets[run_id].remove(ws)
+    if run_id in _sockets and not _sockets[run_id]:
+        _sockets.pop(run_id)
 
 
 async def _send(ws: WebSocket, msg: dict[str, Any]) -> None:
@@ -120,11 +127,9 @@ async def _execute(run_id: str, req: RunRequest) -> None:
         await _broadcast(run_id, {"type": "status", "status": "running"})
 
         repo_root = str(Path(req.repo).resolve())
-        cfg_path = req.config_path
-        if cfg_path is None:
-            candidate = Path(repo_root) / "conveyor-belt.yaml"
-            if candidate.exists():
-                cfg_path = str(candidate)
+        # Always pass an explicit path so load_config never falls back to the
+        # server process CWD instead of the target repo root.
+        cfg_path = req.config_path or str(Path(repo_root) / "conveyor-belt.yaml")
         cfg = load_config(cfg_path)
 
         # Build changed-file context

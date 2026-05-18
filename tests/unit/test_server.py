@@ -96,12 +96,12 @@ class TestWebSocket:
     def setup_method(self):
         _clear_state()
 
-    def test_connect_unknown_run(self):
-        """Connecting to an unknown run_id should succeed (no crash)."""
+    def test_connect_unknown_run_rejected(self):
+        """Unknown run_id is rejected with close code 4404."""
         client = TestClient(app)
-        with client.websocket_connect("/ws/unknown-run") as ws:
-            # Connection stays open; no initial state is sent for unknown runs
-            ws.send_text("ping")
+        with pytest.raises(Exception):
+            with client.websocket_connect("/ws/unknown-run") as ws:
+                ws.receive_text()
 
     def test_connect_sends_existing_state(self):
         _runs["run1"] = {"id": "run1", "status": "complete", "stations": {}}
