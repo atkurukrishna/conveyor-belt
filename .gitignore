@@ -8,6 +8,8 @@ build/
 .ruff_cache/
 coverage.xml
 coverage.out
+.coverage
+.coverage.*
 htmlcov/
 .mypy_cache/
 
