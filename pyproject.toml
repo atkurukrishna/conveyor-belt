@@ -19,6 +19,8 @@ langchain-core = "^0.3"
 langchain-anthropic = "^0.3"
 langchain-google-genai = "^2.1"
 rich = "^13.7"
+fastapi = "^0.111"
+uvicorn = {version = "^0.29", extras = ["standard"]}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

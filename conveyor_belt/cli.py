@@ -89,6 +89,27 @@ def run(
 
 
 @main.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind host.")
+@click.option("--port", default=8000, show_default=True, type=int, help="Bind port.")
+@click.option("--reload", is_flag=True, help="Auto-reload on code changes (dev mode).")
+def serve(host: str, port: int, reload: bool) -> None:
+    """Launch the visual web dashboard."""
+    try:
+        import uvicorn
+    except ImportError:  # pragma: no cover
+        console.print("[red]uvicorn is required. Install it with: pip install 'uvicorn[standard]'[/]")
+        sys.exit(1)
+
+    console.print(f"[bold green]▶ Conveyor Belt UI[/] — http://{host}:{port}")
+    uvicorn.run(
+        "conveyor_belt.server:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
+@main.command()
 @click.option(
     "--config",
     "config_path",
