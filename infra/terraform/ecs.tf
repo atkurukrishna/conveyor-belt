@@ -55,6 +55,15 @@ resource "aws_ecs_task_definition" "app" {
         { name = "PORT", value = tostring(var.container_port) }
       ]
 
+      # API keys pulled from Secrets Manager at task start — never baked into
+      # the image or passed as plaintext env vars.
+      secrets = var.app_secrets_arn != "" ? [
+        { name = "ANTHROPIC_API_KEY", valueFrom = "${var.app_secrets_arn}:ANTHROPIC_API_KEY::" },
+        { name = "GOOGLE_API_KEY",    valueFrom = "${var.app_secrets_arn}:GOOGLE_API_KEY::" },
+        { name = "SNYK_TOKEN",        valueFrom = "${var.app_secrets_arn}:SNYK_TOKEN::" },
+        { name = "LINEAR_API_KEY",    valueFrom = "${var.app_secrets_arn}:LINEAR_API_KEY::" },
+      ] : []
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {

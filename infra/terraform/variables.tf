@@ -63,3 +63,15 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "certificate_arn" {
+  description = "ACM certificate ARN for HTTPS. Leave empty to keep the HTTP-only listener (dev mode)."
+  type        = string
+  default     = ""
+}
+
+variable "app_secrets_arn" {
+  description = "ARN of a Secrets Manager secret (JSON) containing ANTHROPIC_API_KEY, GOOGLE_API_KEY, SNYK_TOKEN, LINEAR_API_KEY. Leave empty to skip."
+  type        = string
+  default     = ""
+}
