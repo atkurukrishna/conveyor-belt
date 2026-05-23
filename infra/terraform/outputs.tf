@@ -1,6 +1,6 @@
 output "app_url" {
   description = "Public URL of the Conveyor Belt dashboard."
-  value       = "http://${aws_lb.main.dns_name}"
+  value       = var.certificate_arn != "" ? "https://${aws_lb.main.dns_name}" : "http://${aws_lb.main.dns_name}"
 }
 
 output "ecr_repository_url" {
