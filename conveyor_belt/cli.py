@@ -97,7 +97,9 @@ def serve(host: str, port: int, reload: bool) -> None:
     try:
         import uvicorn
     except ImportError:  # pragma: no cover
-        console.print("[red]uvicorn is required. Install it with: pip install 'uvicorn[standard]'[/]")
+        console.print(
+            "[red]uvicorn is required. Install it with: pip install 'uvicorn[standard]'[/]"
+        )
         sys.exit(1)
 
     console.print(f"[bold green]▶ Conveyor Belt UI[/] — http://{host}:{port}")

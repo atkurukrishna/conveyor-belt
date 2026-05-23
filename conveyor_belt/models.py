@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, Field
 
 
-class Severity(str, enum.Enum):
+class Severity(enum.StrEnum):
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"

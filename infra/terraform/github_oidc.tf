@@ -88,6 +88,7 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecs:DescribeServices",
       "ecs:UpdateService",
     ]
+    # aws_ecs_service.id IS the service ARN — the provider exports no separate .arn attribute.
     resources = [aws_ecs_service.app.id]
   }
 

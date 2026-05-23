@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from conveyor_belt.models import Finding, Severity, StationResult
-from conveyor_belt.server import RunRequest, _broadcast, _execute, _runs, _sockets, app
+from conveyor_belt.server import (
+    RunRequest,
+    _broadcast,
+    _execute,
+    _runs,
+    _sockets,
+    app,
+)
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -18,6 +25,10 @@ from conveyor_belt.server import RunRequest, _broadcast, _execute, _runs, _socke
 def _clear_state() -> None:
     _runs.clear()
     _sockets.clear()
+
+
+def _make_run_state(run_id: str) -> dict:
+    return {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
 
 
 # ── REST endpoint tests ────────────────────────────────────────────────────
@@ -99,9 +110,8 @@ class TestWebSocket:
     def test_connect_unknown_run_rejected(self):
         """Unknown run_id is rejected with close code 4404."""
         client = TestClient(app)
-        with pytest.raises(Exception):
-            with client.websocket_connect("/ws/unknown-run") as ws:
-                ws.receive_text()
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/unknown-run") as ws:
+            ws.receive_text()
 
     def test_connect_sends_existing_state(self):
         _runs["run1"] = {"id": "run1", "status": "complete", "stations": {}}
@@ -165,6 +175,12 @@ def _make_mock_config(policy: str = "hard_fail"):
     return cfg
 
 
+_PATCH_GIT_DIFF = "conveyor_belt.integrations.git.changed_files_from_diff"
+_PATCH_GIT_STAGED = "conveyor_belt.integrations.git.changed_files_from_staged"
+_PATCH_STATIONS = "conveyor_belt.server._available_stations"
+_PATCH_CONFIG = "conveyor_belt.server.load_config"
+
+
 class TestExecutePipeline:
     def setup_method(self):
         _clear_state()
@@ -172,7 +188,7 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_successful_run_with_diff(self, tmp_path):
         run_id = "test-run-1"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
@@ -180,9 +196,9 @@ class TestExecutePipeline:
         mock_station.execute = AsyncMock(return_value=_make_station_result("idiomatic"))
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"idiomatic": mock_station}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"idiomatic": mock_station}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
@@ -194,17 +210,19 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_gate_fails_when_station_fails(self, tmp_path):
         run_id = "test-run-2"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config("hard_fail")
         mock_station = MagicMock()
-        mock_station.execute = AsyncMock(return_value=_make_station_result("security", passed=False))
+        mock_station.execute = AsyncMock(
+            return_value=_make_station_result("security", passed=False)
+        )
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"security": mock_station}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"security": mock_station}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
@@ -214,17 +232,19 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_soft_fail_policy_always_passes(self, tmp_path):
         run_id = "test-run-3"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config("soft_fail")
         mock_station = MagicMock()
-        mock_station.execute = AsyncMock(return_value=_make_station_result("security", passed=False))
+        mock_station.execute = AsyncMock(
+            return_value=_make_station_result("security", passed=False)
+        )
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"security": mock_station}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"security": mock_station}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
@@ -234,14 +254,14 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_no_stations_completes_immediately(self, tmp_path):
         run_id = "test-run-4"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
@@ -252,18 +272,14 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_uses_staged_when_no_pr_or_diff(self, tmp_path):
         run_id = "test-run-5"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={}),
-            patch(
-                "conveyor_belt.integrations.git.changed_files_from_staged",
-                new_callable=AsyncMock,
-                return_value=[],
-            ) as mock_staged,
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={}),
+            patch(_PATCH_GIT_STAGED, new_callable=AsyncMock, return_value=[]) as mock_staged,
         ):
             req = RunRequest(repo=str(tmp_path))
             await _execute(run_id, req)
@@ -273,7 +289,7 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_station_crash_recorded_as_failed(self, tmp_path):
         run_id = "test-run-6"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
@@ -281,9 +297,9 @@ class TestExecutePipeline:
         mock_station.execute = AsyncMock(side_effect=RuntimeError("boom"))
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"security": mock_station}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"security": mock_station}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
@@ -294,10 +310,10 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_top_level_error_sets_error_status(self, tmp_path):
         run_id = "test-run-7"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
-        with patch("conveyor_belt.server.load_config", side_effect=RuntimeError("bad config")):
+        with patch(_PATCH_CONFIG, side_effect=RuntimeError("bad config")):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
 
@@ -307,7 +323,7 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_station_subset_filter(self, tmp_path):
         run_id = "test-run-8"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
@@ -317,9 +333,9 @@ class TestExecutePipeline:
         st_b.execute = AsyncMock(return_value=_make_station_result("security"))
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"idiomatic": st_a, "security": st_b}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"idiomatic": st_a, "security": st_b}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1", stations=["idiomatic"])
             await _execute(run_id, req)
@@ -330,7 +346,7 @@ class TestExecutePipeline:
     @pytest.mark.asyncio
     async def test_findings_serialised_in_result(self, tmp_path):
         run_id = "test-run-9"
-        _runs[run_id] = {"id": run_id, "status": "pending", "stations": {}, "report": None, "error": None}
+        _runs[run_id] = _make_run_state(run_id)
         _sockets[run_id] = []
 
         cfg = _make_mock_config()
@@ -344,9 +360,9 @@ class TestExecutePipeline:
         mock_station.execute = AsyncMock(return_value=result_with_findings)
 
         with (
-            patch("conveyor_belt.server.load_config", return_value=cfg),
-            patch("conveyor_belt.server._available_stations", return_value={"security": mock_station}),
-            patch("conveyor_belt.integrations.git.changed_files_from_diff", new_callable=AsyncMock, return_value=[]),
+            patch(_PATCH_CONFIG, return_value=cfg),
+            patch(_PATCH_STATIONS, return_value={"security": mock_station}),
+            patch(_PATCH_GIT_DIFF, new_callable=AsyncMock, return_value=[]),
         ):
             req = RunRequest(repo=str(tmp_path), diff="HEAD~1")
             await _execute(run_id, req)
