@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir poetry==2.3.3
 COPY pyproject.toml poetry.lock ./
 
 RUN poetry config virtualenvs.create false \
- && poetry install --only main --no-interaction --no-ansi
+ && poetry install --only main --no-root --no-interaction --no-ansi
 
 COPY conveyor_belt/ conveyor_belt/
 
