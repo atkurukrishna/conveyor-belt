@@ -15,11 +15,11 @@ az_count  = 2
 log_retention_days = 30
 
 # Set by CI after `docker build && docker push`:
-# container_image = "123456789.dkr.ecr.us-east-1.amazonaws.com/conveyor-belt-dev:v1.2.3"
+# container_image = "123456789.dkr.ecr.ap-south-1.amazonaws.com/conveyor-belt-dev:v1.2.3"
 
 # HTTPS — set once your ACM certificate is issued and validated:
-# certificate_arn = "arn:aws:acm:us-east-1:123456789:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# certificate_arn = "arn:aws:acm:ap-south-1:123456789:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 
 # Secrets — ARN of a Secrets Manager secret with this JSON structure:
 # { "ANTHROPIC_API_KEY": "...", "GOOGLE_API_KEY": "...", "SNYK_TOKEN": "...", "LINEAR_API_KEY": "..." }
-# app_secrets_arn = "arn:aws:secretsmanager:us-east-1:123456789:secret/conveyor-belt-dev-secrets-XXXXXX"
+# app_secrets_arn = "arn:aws:secretsmanager:ap-south-1:123456789:secret/conveyor-belt-dev-secrets-XXXXXX"

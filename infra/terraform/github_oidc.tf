@@ -6,6 +6,14 @@ variable "github_repo" {
 
 # ── GitHub Actions OIDC provider ─────────────────────────────────────────────
 # One provider per AWS account — use data source if it already exists.
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+# Use the existing provider if it exists, otherwise create it.
+# Note: Terraform doesn't support conditional resources directly.
+# If you get an error, you may need to import the existing provider into your state:
+# terraform import aws_iam_openid_connect_provider.github <arn>
 resource "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
 
